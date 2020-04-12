@@ -47,6 +47,26 @@ class Vector {
         return Math.sqrt(this.x * this.x + this.y * this.y);
     }
 
+    add(other) {
+        this.x += other.x;
+        this.y += other.y;
+        return this;
+    }
+
+    scalar(number) {
+        return new Vector(this.x * number, this.y * number);
+    }
+
+    dotProduct(other) {
+        return this.x * other.x + this.y * other.y;
+    }
+
+    project(other) {
+        let ratio = this.dotProduct(other) / other.dotProduct(other);
+        let ret = other.copy();
+        return ret.scalar(ratio);
+    }
+
     unify(length) {
         let ratio = length / this.length();
         this.x *= ratio;
@@ -74,6 +94,16 @@ class Circle extends Block {
         this.type = "circle";
         this.radius = 20;
     }
+
+    checkCollide(ball) {
+        if (this.pos.getVector(ball.pos).length() <= this.radius + ball.radius) {
+            ball.collide(ball.pos.getVector(this.pos));
+            this.life -= 1;
+            return true;
+        } else {
+            return false;
+        }
+    }
 }
 
 class Square extends Block {
@@ -82,6 +112,26 @@ class Square extends Block {
         this.type = "square";
         this.size = 40;
     }
+
+    checkCollide(ball) {
+        let xDistance = Math.abs(ball.pos.x - this.pos.x);
+        let yDistance = Math.abs(ball.pos.y - this.pos.y);
+        let tolerance = ball.radius + this.size / 2;
+
+        if (xDistance <= tolerance && yDistance <= tolerance) {
+            if (xDistance < yDistance) {
+                // collide from Y direction
+                ball.collide(new Vector(0, this.pos.y - ball.pos.y));
+            } else {
+                // collide from X direction
+                ball.collide(new Vector(this.pos.x - ball.pos.x, 0));
+            }
+            this.life -= 1;
+            return true;
+        } else {
+            return false;
+        }
+    }
 }
 
 class Ball extends Particle {
@@ -89,22 +139,38 @@ class Ball extends Particle {
         super(position.x, position.y);
         this.radius = 5;
         this.speed = speed.copy();
+        this.acceleration = new Vector(0, 50);
         this.valid = true;
         this.delay = delay;
+    }
+
+    // normal direction
+    // which is perpendicular to the surface
+    collide(direction) {
+        let projection = this.speed.project(direction);
+        if (projection.dotProduct(direction) > 0) {
+            this.speed.add(projection.scalar(-2));
+        }
     }
 
     update(deltat) {
         if (this.valid){
             if (this.delay <= 0) {
                 this.pos.move(this.speed, deltat);
+                this.speed.add(this.acceleration.scalar(deltat));
+                // check X coordinate
                 if (this.pos.x - this.radius <= 0) {
-                    this.pos.x - this.radius;
+                    this.pos.x = this.radius;
                     this.speed.x *= -1;
                 } else if (this.pos.x + this.radius >= GAME_WIDTH) {
                     this.pos.x = GAME_WIDTH - this.radius;
                     this.speed.x *= -1;
                 }
-                if (this.pos.y > GAME_HEIGHT) {
+                // check Y coordinate
+                if (this.pos.y - this.radius <= 0) {
+                    this.pos.y = this.radius;
+                    this.speed.y = -this.speed.y ;
+                } else if (this.pos.y > GAME_HEIGHT) {
                     this.valid = false;
                 }
             } else {
@@ -130,6 +196,16 @@ class Grid {
         return new Position(x, y);
     }
 
+    positionToBlock(pos) {
+        let gridX = Math.floor(pos.x / this.gridSize);
+        let gridY = Math.floor(pos.y / this.gridSize);
+        if ( 0 <= gridY && gridY < this.gridHeight && 0 <= gridX && this.gridWidth) {
+            return this.data[gridY][gridX];
+        } else {
+            return null;
+        }
+    }
+
     initializeData() {
         this.data = [];
         for (let i = 0; i < this.gridHeight; i++) {
@@ -143,8 +219,8 @@ class Grid {
 
     generateRandomGridXList(){
         var xSet = new Set();
-        // do not generate blocks more than 1/2 of the total blocks in a row
-        for (let i = 0; i < Math.floor(this.gridWidth * (1/2) ) ; i++) {
+        // do not generate blocks more than 1/3 of the total blocks in a row
+        for (let i = 0; i < Math.floor(this.gridWidth * (1/3) ) ; i++) {
             let gridX = randInt(0, this.gridWidth - 1);
             xSet.add(gridX);
         }
@@ -195,6 +271,19 @@ class Grid {
         }
     }
 
+    checkCollide(ball) {
+        let block = this.positionToBlock(ball.pos);
+        if (block && block.checkCollide(ball) && block.life == 0) {
+            this.removeBlock(block);
+        }
+    }
+
+    removeBlock(block) {
+        let gridX = Math.floor(block.pos.x / this.gridSize);
+        let gridY = Math.floor(block.pos.y / this.gridSize);
+        this.data[gridY][gridX] = null;
+    }
+
     getBlocks() {
         let blocks = [];
         for (let i = 0; i < this.gridHeight; i++) {
@@ -243,6 +332,12 @@ class Game {
     update(deltat) {
         for (let i = 0; i < this.balls.length; i++) {
             this.balls[i].update(deltat);
+        }
+
+        // collision detection
+        for (let i = 0; i < this.balls.length; i++) {
+            let ball = this.balls[i];
+            this.grid.checkCollide(ball);
         }
     }
 }
