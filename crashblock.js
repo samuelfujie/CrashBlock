@@ -141,20 +141,34 @@ class Grid {
         }
     }
 
-    generateRandomBlock() {
-        let gridX = randInt(0, this.gridWidth - 1);
-        let gridY = this.gridHeight - 1;
-        let position = this.gridToPosition(gridX, gridY);
-        let choice = randChoice(BLOCK_SHAPE);
-
-        let block = null;
-        if (choice == "square") {
-            block = new Square(position.x, position.y);
-        } else if (choice == "circle") {
-            block = new Circle(position.x, position.y);
+    generateRandomGridXList(){
+        var xSet = new Set();
+        // do not generate blocks more than 1/2 of the total blocks in a row
+        for (let i = 0; i < Math.floor(this.gridWidth * (1/2) ) ; i++) {
+            let gridX = randInt(0, this.gridWidth - 1);
+            xSet.add(gridX);
         }
+        return Array.from(xSet)
+    }
 
-        this.data[gridY][gridX] = block;
+    generateRandomBlock(totalBallNumber) {
+        let gridXList = this.generateRandomGridXList();
+        let gridY = this.gridHeight - 1;
+
+        for (let gridX of gridXList) {
+            let position = this.gridToPosition(gridX, gridY);
+            let choice = randChoice(BLOCK_SHAPE);
+            let block_life = randInt(Math.floor(totalBallNumber * 0.5), Math.floor(totalBallNumber * 1.5))
+
+            let block = null;
+            if (choice == "square") {
+                block = new Square(position.x, position.y, block_life);
+            } else if (choice == "circle") {
+                block = new Circle(position.x, position.y, block_life);
+            }
+
+            this.data[gridY][gridX] = block;
+        }
     }
 
     // return true if game is over
@@ -206,7 +220,7 @@ class Game {
 
     start() {
         this.grid.initializeData();
-        this.grid.generateRandomBlock();
+        this.grid.generateRandomBlock(this.totalBallNumber);
     }
 
     shoot(targetPosition) {
@@ -222,7 +236,7 @@ class Game {
         if (failure) {
             this.start();
         } else {
-            this.grid.generateRandomBlock();
+            this.grid.generateRandomBlock(this.totalBallNumber);
         }
     }
 
